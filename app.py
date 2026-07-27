@@ -1,11 +1,9 @@
-import os
-import json
 import pandas as pd
 import streamlit as st
+from streamlit_gsheets import GSheetsConnection
 
 # --- config ---
 TARGET_WORDS = 15000
-DATA_FILE = "word_count_data.json"
 
 st.set_page_config(page_title="15k Word Challenge", page_icon="💖", layout="centered")
 
@@ -54,27 +52,27 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- data helpers ---
+# --- google sheets connection ---
+conn = st.connection("gsheets", type=GSheetsConnection)
+
 def load_data():
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r") as f:
-            return json.load(f)
-    return {"Brie": [], "Kat": []}
+    try:
+        df = conn.read(ttl="0s") # ttl=0 ensure live refresh
+        if df is None or df.empty:
+            return pd.DataFrame(columns=["writer", "date", "words"])
+        return df
+    except Exception:
+        return pd.DataFrame(columns=["writer", "date", "words"])
 
-def save_data(data):
-    with open(DATA_FILE, "w") as f:
-        json.dump(data, f, indent=4)
-
-if "data" not in st.session_state:
-    st.session_state.data = load_data()
+df_logs = load_data()
 
 # --- app header ---
 st.title("💖 15k writing sprint")
 st.caption("fill the bar to 15,000 words before the week ends!")
 
 # --- totals ---
-brie_total = sum(entry["words"] for entry in st.session_state.data.get("Brie", []))
-kat_total = sum(entry["words"] for entry in st.session_state.data.get("Kat", []))
+brie_total = int(df_logs[df_logs["writer"] == "Brie"]["words"].sum()) if not df_logs.empty else 0
+kat_total = int(df_logs[df_logs["writer"] == "Kat"]["words"].sum()) if not df_logs.empty else 0
 
 st.markdown("### 📊 Progress Leaderboard")
 
@@ -88,9 +86,9 @@ with col1:
 
 with col2:
     st.subheader("✨ Kat")
-    pct_b = min(float(kat_total) / TARGET_WORDS, 1.0)
+    pct_k = min(float(kat_total) / TARGET_WORDS, 1.0)
     st.metric(label="Total Words", value=f"{kat_total:,}", delta=f"{TARGET_WORDS - kat_total:,} left")
-    st.progress(pct_b, text=f"{pct_b * 100:.1f}% of {TARGET_WORDS:,}")
+    st.progress(pct_k, text=f"{pct_k * 100:.1f}% of {TARGET_WORDS:,}")
 
 st.divider()
 
@@ -112,9 +110,14 @@ with st.form("log_words_form", clear_on_submit=True):
     submitted = st.form_submit_button("add words ✨", use_container_width=True)
 
     if submitted:
-        entry = {"date": str(entry_date), "words": int(words_added)}
-        st.session_state.data[author].append(entry)
-        save_data(st.session_state.data)
+        new_row = pd.DataFrame([{
+            "writer": author,
+            "date": str(entry_date),
+            "words": int(words_added)
+        }])
+        
+        updated_df = pd.concat([df_logs, new_row], ignore_index=True)
+        conn.update(data=updated_df)
         st.success(f"added {words_added:,} words for {author}!")
         st.rerun()
 
@@ -122,14 +125,8 @@ st.divider()
 
 # --- history & breakdown ---
 with st.expander("📜 writing logs & charts"):
-    logs = []
-    for person in ["Brie", "Kat"]:
-        for entry in st.session_state.data.get(person, []):
-            logs.append({"writer": person, "date": entry["date"], "words": entry["words"]})
-    
-    if logs:
-        df = pd.DataFrame(logs)
-        st.dataframe(df.sort_values(by="date", ascending=False), use_container_width=True)
-        st.bar_chart(df, x="date", y="words", color="writer", stack=False)
+    if not df_logs.empty:
+        st.dataframe(df_logs.sort_values(by="date", ascending=False), use_container_width=True)
+        st.bar_chart(df_logs, x="date", y="words", color="writer", stack=False)
     else:
         st.info("no words logged yet! fill in the form above to kick things off!")
