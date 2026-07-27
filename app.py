@@ -1,78 +1,57 @@
 import pandas as pd
+import requests
 import streamlit as st
-from streamlit_gsheets import GSheetsConnection
 
-# --- config ---
+# --- Config & Secrets ---
 TARGET_WORDS = 15000
+
+# Put these in Streamlit Secrets or hardcode for testing
+BIN_ID = st.secrets.get("JSONBIN_BIN_ID", "6a67ba0cf5f4af5e29c9b023")
+API_KEY = st.secrets.get("JSONBIN_API_KEY", "$2a$10$EMTUkpfWbyxq52/XEcwpC.YII2yX8zDP9SjkRt7Ni4AefanCP.hW6")
+
+headers = {
+    "Content-Type": "application/json",
+    "X-Master-Key": API_KEY
+}
 
 st.set_page_config(page_title="15k Word Challenge", page_icon="💖", layout="centered")
 
-# --- pink aesthetic ---
+# --- Styling ---
 st.markdown("""
     <style>
-    /* main background & font styling */
-    .main {
-        background-color: #FFF0F5;
-    }
-    
-    /* Header Styling */
-    h1 {
-        color: #D81B60 !important;
-        font-family: 'Helvetica Neue', sans-serif;
-        font-weight: 800;
-    }
-    h2, h3 {
-        color: #C2185B !important;
-    }
-    
-    /* customizing progress bar colors to hot pink */
-    .stProgress > div > div > div > div {
-        background-color: #FF1493 !important;
-    }
-    
-    /* button styling */
-    .stButton>button {
-        background-color: #FF69B4 !important;
-        color: white !important;
-        border-radius: 20px !important;
-        border: none !important;
-        font-weight: bold !important;
-        padding: 10px 24px !important;
-    }
-    .stButton>button:hover {
-        background-color: #FF1493 !important;
-        color: white !important;
-        transform: scale(1.02);
-    }
-    
-    /* input highlights */
-    div[data-baseweb="select"] > div {
-        border-color: #FF69B4 !important;
-    }
+    .main { background-color: #FFF0F5; }
+    h1 { color: #D81B60 !important; font-family: 'Helvetica Neue', sans-serif; font-weight: 800; }
+    h2, h3 { color: #C2185B !important; }
+    .stProgress > div > div > div > div { background-color: #FF1493 !important; }
+    .stButton>button { background-color: #FF69B4 !important; color: white !important; border-radius: 20px !important; border: none !important; font-weight: bold !important; padding: 10px 24px !important; }
+    .stButton>button:hover { background-color: #FF1493 !important; color: white !important; transform: scale(1.02); }
+    div[data-baseweb="select"] > div { border-color: #FF69B4 !important; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- google sheets connection ---
-conn = st.connection("gsheets", type=GSheetsConnection)
-
+# --- Data Helpers ---
 def load_data():
     try:
-        df = conn.read(ttl="0s") # ttl=0 ensure live refresh
-        if df is None or df.empty:
-            return pd.DataFrame(columns=["writer", "date", "words"])
-        return df
+        res = requests.get(f"https://api.jsonbin.io/v3/b/{BIN_ID}/latest", headers=headers)
+        if res.status_code == 200:
+            return res.json()["record"]
     except Exception:
-        return pd.DataFrame(columns=["writer", "date", "words"])
+        pass
+    return {"Brie": [], "Kat": []}
 
-df_logs = load_data()
+def save_data(data):
+    requests.put(f"https://api.jsonbin.io/v3/b/{BIN_ID}", json=data, headers=headers)
 
-# --- app header ---
+if "data" not in st.session_state:
+    st.session_state.data = load_data()
+
+# --- App Header ---
 st.title("💖 15k writing sprint")
 st.caption("fill the bar to 15,000 words before the week ends!")
 
-# --- totals ---
-brie_total = int(df_logs[df_logs["writer"] == "Brie"]["words"].sum()) if not df_logs.empty else 0
-kat_total = int(df_logs[df_logs["writer"] == "Kat"]["words"].sum()) if not df_logs.empty else 0
+# --- Totals ---
+brie_total = sum(entry["words"] for entry in st.session_state.data.get("Brie", []))
+kat_total = sum(entry["words"] for entry in st.session_state.data.get("Kat", []))
 
 st.markdown("### 📊 Progress Leaderboard")
 
@@ -92,7 +71,7 @@ with col2:
 
 st.divider()
 
-# --- input form ---
+# --- Input Form ---
 st.markdown("### ✍️ log today's words")
 
 with st.form("log_words_form", clear_on_submit=True):
@@ -110,23 +89,24 @@ with st.form("log_words_form", clear_on_submit=True):
     submitted = st.form_submit_button("add words ✨", use_container_width=True)
 
     if submitted:
-        new_row = pd.DataFrame([{
-            "writer": author,
-            "date": str(entry_date),
-            "words": int(words_added)
-        }])
-        
-        updated_df = pd.concat([df_logs, new_row], ignore_index=True)
-        conn.update(data=updated_df)
+        entry = {"date": str(entry_date), "words": int(words_added)}
+        st.session_state.data[author].append(entry)
+        save_data(st.session_state.data)
         st.success(f"added {words_added:,} words for {author}!")
         st.rerun()
 
 st.divider()
 
-# --- history & breakdown ---
+# --- Logs & Charts ---
 with st.expander("📜 writing logs & charts"):
-    if not df_logs.empty:
-        st.dataframe(df_logs.sort_values(by="date", ascending=False), use_container_width=True)
-        st.bar_chart(df_logs, x="date", y="words", color="writer", stack=False)
+    logs = []
+    for person in ["Brie", "Kat"]:
+        for entry in st.session_state.data.get(person, []):
+            logs.append({"writer": person, "date": entry["date"], "words": entry["words"]})
+    
+    if logs:
+        df = pd.DataFrame(logs)
+        st.dataframe(df.sort_values(by="date", ascending=False), use_container_width=True)
+        st.bar_chart(df, x="date", y="words", color="writer", stack=False)
     else:
         st.info("no words logged yet! fill in the form above to kick things off!")
