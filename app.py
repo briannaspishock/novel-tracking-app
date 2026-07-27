@@ -82,7 +82,7 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("✨ Brie")
-    pct_b = min(float(brianna_total) / TARGET_WORDS, 1.0)
+    pct_b = min(float(brie_total) / TARGET_WORDS, 1.0)
     st.metric(label="Total Words", value=f"{brie_total:,}", delta=f"{TARGET_WORDS - brie_total:,} left")
     st.progress(pct_b, text=f"{pct_b * 100:.1f}% of {TARGET_WORDS:,}")
 
