@@ -2,10 +2,10 @@ import pandas as pd
 import requests
 import streamlit as st
 
-# --- Config & Secrets ---
+# cobfig
 TARGET_WORDS = 15000
 
-# Put these in Streamlit Secrets or hardcode for testing
+# jsonbin
 BIN_ID = st.secrets.get("JSONBIN_BIN_ID", "6a67ba0cf5f4af5e29c9b023")
 API_KEY = st.secrets.get("JSONBIN_API_KEY", "$2a$10$EMTUkpfWbyxq52/XEcwpC.YII2yX8zDP9SjkRt7Ni4AefanCP.hW6")
 
@@ -16,7 +16,7 @@ headers = {
 
 st.set_page_config(page_title="15k Word Challenge", page_icon="💖", layout="centered")
 
-# --- Styling ---
+# pink aesthetic 
 st.markdown("""
     <style>
     .main { background-color: #FFF0F5; }
@@ -29,7 +29,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- Data Helpers ---
+# helpers
 def load_data():
     try:
         res = requests.get(f"https://api.jsonbin.io/v3/b/{BIN_ID}/latest", headers=headers)
@@ -45,11 +45,11 @@ def save_data(data):
 if "data" not in st.session_state:
     st.session_state.data = load_data()
 
-# --- App Header ---
+# header
 st.title("💖 15k writing sprint")
 st.caption("fill the bar to 15,000 words before the week ends!")
 
-# --- Totals ---
+# overview of writer totals 
 brie_total = sum(entry["words"] for entry in st.session_state.data.get("Brie", []))
 kat_total = sum(entry["words"] for entry in st.session_state.data.get("Kat", []))
 
@@ -71,7 +71,7 @@ with col2:
 
 st.divider()
 
-# --- Input Form ---
+# daily log input form
 st.markdown("### ✍️ log today's words")
 
 with st.form("log_words_form", clear_on_submit=True):
@@ -97,7 +97,7 @@ with st.form("log_words_form", clear_on_submit=True):
 
 st.divider()
 
-# --- Logs & Charts ---
+# history
 with st.expander("📜 writing logs & charts"):
     logs = []
     for person in ["Brie", "Kat"]:
