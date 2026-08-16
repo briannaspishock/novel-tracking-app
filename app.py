@@ -3,7 +3,7 @@ import requests
 import streamlit as st
 
 # cobfig
-TARGET_WORDS = 15000
+TARGET_WORDS = 5000
 
 # jsonbin
 BIN_ID = st.secrets.get("JSONBIN_BIN_ID", "6a67ba0cf5f4af5e29c9b023")
@@ -14,7 +14,7 @@ headers = {
     "X-Master-Key": API_KEY
 }
 
-st.set_page_config(page_title="15k Word Challenge", page_icon="💖", layout="centered")
+st.set_page_config(page_title="5k word challenge", page_icon="📓", layout="centered")
 
 # pink aesthetic 
 st.markdown("""
@@ -46,14 +46,14 @@ if "data" not in st.session_state:
     st.session_state.data = load_data()
 
 # header
-st.title("💖 15k writing sprint")
-st.caption("fill the bar to 15,000 words before the week ends!")
+st.title("💖 5k writing sprint")
+st.caption("fill the bar to 5,000 words before the week ends!")
 
 # overview of writer totals 
 brie_total = sum(entry["words"] for entry in st.session_state.data.get("Brie", []))
 kat_total = sum(entry["words"] for entry in st.session_state.data.get("Kat", []))
 
-st.markdown("### 📊 Progress Leaderboard")
+st.markdown("### 📊 progress leaderboard")
 
 col1, col2 = st.columns(2)
 
